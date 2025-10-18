@@ -84,7 +84,7 @@ const Home: NextPage = () => {
           const imageData = ctx?.getImageData(0, 0, canvas.width, canvas.height);
           if (imageData) {
             const predictions = await nsfwModel.classify(imageData);
-            const nsfwScore = predictions.find(p => p.className === 'Porn')?.probability || 0;
+            const nsfwScore = predictions.find((p: any) => p.className === 'Porn')?.probability || 0;
             isSafe = nsfwScore < 0.5; // Threshold for NSFW detection
             console.log({ nsfwScore, isSafe });
           }
