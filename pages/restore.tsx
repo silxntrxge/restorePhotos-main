@@ -1,7 +1,7 @@
 import { NextPage } from 'next';
 import Head from 'next/head';
 import Image from 'next/image';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { UrlBuilder } from '@bytescale/sdk';
 import {
   UploadWidgetConfig,
@@ -15,7 +15,7 @@ import LoadingDots from '../components/LoadingDots';
 import Toggle from '../components/Toggle';
 import appendNewToName from '../utils/appendNewToName';
 import downloadPhoto from '../utils/downloadPhoto';
-import NSFWFilter from 'nsfw-filter';
+import { load } from 'nsfwjs';
 import { useSession, signIn } from 'next-auth/react';
 import useSWR from 'swr';
 import { Rings } from 'react-loader-spinner';
@@ -28,10 +28,24 @@ const Home: NextPage = () => {
   const [sideBySide, setSideBySide] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [photoName, setPhotoName] = useState<string | null>(null);
+  const [nsfwModel, setNsfwModel] = useState<any>(null);
 
   const fetcher = (url: string) => fetch(url).then((res) => res.json());
   const { data, mutate } = useSWR('/api/remaining', fetcher);
   const { data: session, status } = useSession();
+
+  // Load NSFW model on component mount
+  useEffect(() => {
+    const loadModel = async () => {
+      try {
+        const model = await load();
+        setNsfwModel(model);
+      } catch (error) {
+        console.error('Failed to load NSFW model:', error);
+      }
+    };
+    loadModel();
+  }, []);
 
   const options: UploadWidgetConfig = {
     apiKey: !!process.env.NEXT_PUBLIC_UPLOAD_API_KEY
@@ -46,8 +60,38 @@ const Home: NextPage = () => {
     ): Promise<UploadWidgetOnPreUploadResult | undefined> => {
       let isSafe = false;
       try {
-        isSafe = await NSFWFilter.isSafe(file);
-        console.log({ isSafe });
+        if (nsfwModel) {
+          // Create an image element to load the file
+          const img = new window.Image();
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          
+          // Wait for image to load
+          await new Promise((resolve, reject) => {
+            img.onload = resolve;
+            img.onerror = reject;
+            img.src = URL.createObjectURL(file);
+          });
+          
+          // Set canvas dimensions to match image
+          canvas.width = img.width;
+          canvas.height = img.height;
+          
+          // Draw image to canvas
+          ctx?.drawImage(img, 0, 0);
+          
+          // Get image data and classify
+          const imageData = ctx?.getImageData(0, 0, canvas.width, canvas.height);
+          if (imageData) {
+            const predictions = await nsfwModel.classify(imageData);
+            const nsfwScore = predictions.find(p => p.className === 'Porn')?.probability || 0;
+            isSafe = nsfwScore < 0.5; // Threshold for NSFW detection
+            console.log({ nsfwScore, isSafe });
+          }
+          
+          // Clean up
+          URL.revokeObjectURL(img.src);
+        }
       } catch (error) {
         console.error('NSFW predictor threw an error', error);
       }
