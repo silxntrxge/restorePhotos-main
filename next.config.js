@@ -9,8 +9,21 @@ module.exports = {
         crypto: require.resolve('crypto-browserify'),
         stream: require.resolve('stream-browserify'),
         util: require.resolve('util'),
+        process: require.resolve('process/browser'),
+        fs: false,
+        net: false,
+        tls: false,
       };
     }
+    
+    // Add polyfills
+    config.plugins.push(
+      new config.webpack.ProvidePlugin({
+        Buffer: ['buffer', 'Buffer'],
+        process: 'process/browser',
+      })
+    );
+    
     return config;
   },
   images: {
