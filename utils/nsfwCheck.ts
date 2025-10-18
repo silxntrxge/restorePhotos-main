@@ -36,7 +36,7 @@ class NSFWPredictor {
       img.height = 400;
 
       img.src = url;
-      return await new Promise<nsfwjs.predictionType[]>((res) => {
+      return await new Promise<nsfwjs.PredictionType[]>((res) => {
         img.onload = async () => {
           const results = await this.predict(img, guesses);
           URL.revokeObjectURL(url);
